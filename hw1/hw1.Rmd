@@ -1,0 +1,296 @@
+---
+title: "Learning From Data - Homework 1"
+output: 
+  bookdown::html_document2:
+    toc: yes
+    number_sections: no
+---
+```{r message=FALSE}
+library(tidyverse)
+library(doParallel)
+```
+
+```{r}
+registerDoParallel(cores = parallel::detectCores())
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+# Exercise 1
+
+* (i) is a direct statistical model which is not learned from data. It is therefore **not learning**;
+* (ii) learns from existing labeled data, so it is **supervised learning**;
+* (iii) is based on a penalty/reward system, so it is **reinforcement learning**.
+
+Alternative $d$.
+
+# Exercise 2
+
+* (i) is an NP-hard problem so unlikely to be solvable with any reasonable model (currently, anyway);
+* (ii) people are already using Machine Learning for this, so definitely a good problem;
+* (iii) we have, from physics, a precise model for this already. No need to learn it from data;
+* (iv) I would not look at this as an ML problem, but maybe some reinforcement learning model could work here. Plus if I leave this out there would be no correct alternatives to choose from. ;-)
+
+So, (ii) and (iv), alternative $a$.
+
+# Exercise 3
+
+Let $D_1, D_2 \in \{w, b\}$ be the random variables representing the first and second draws, respectively. We want to compute the conditional probability $P[D_2 = b \mid D_1 = b]$:
+
+$$
+\begin{align}
+P\left[D_2 = b \mid D_1 = b\right] &= \frac{P[D_2 = b \cap D_1 = b]}{P[D_1 = b]} = \\
+&= \frac{\frac{1}{2} \cdot 1 \cdot 1 + \frac{1}{2}\cdot \frac{1}{2} \cdot 0}{\frac{1}{2}\cdot 1 + \frac{1}{2}\cdot\frac{1}{2}} =\\ 
+&= \frac{\frac{1}{2}}{\frac{3}{4}} = \frac{2}{3}
+\end{align}
+$$
+
+And this corresponds to answer $d$.
+
+# Exercise 4 {#sec:exercise-4}
+
+The probability of getting no red marbles is given by the probability of failing $10$ bernoulli trials with $p = 1 - 0.55$. We get, therefore:
+
+```{r}
+p <- (1 - 0.55)**10
+formatC(p, format = 'e', digits = 3)
+```
+
+So answer $b$.
+
+# Exercise 5
+
+This is given by $1$ minus that probability that each and every sample has at least one red marble in it. The probability that a sample has at least one red marble, in turn, is given by $1 - p$, where $p$ is the probability that we calculated for [Exercise 4](#sec:exercise-4). Therefore:
+
+```{r}
+round(1 - (1 - p)**1000, digits = 3)
+```
+
+And that corresponds to answer $c$.
+
+# Exercises 7-10: Linear Perceptron
+
+For the next exercises we will need a linear perceptron. We start by coding one up:
+
+```{r}
+h <- function(X, w)  {
+  sign(rowSums(t(t(X) * w)))
+}
+
+perceptron_it <- function(X, z, w) {
+  k <- which(h(X, w) != z)
+  if (is_empty(k)) {
+    return(NULL)
+  }
+  k <- k[sample.int(length(k), 1)]
+  unlist(w + z[k] * X[k, 1:length(w)])
+}
+
+perceptron <- function(X, z, n = Inf, w = c(x = 0, y = 0)) {
+  c(list(as.list(w)), {
+    w <- perceptron_it(X, z, w)
+    if (!is.null(w) && n > 0) {
+      perceptron(X, z, n - 1, w)
+    }
+  })
+}
+```
+
+We will also need code to generate the initial data points scattered over the $[-1, 1]$ square, and the initial linearly separable dataset:
+
+```{r}
+generate_points <- function(n, smin = -1, smax = 1) {
+  tibble(
+    x = runif(n, smin, smax),
+    y = runif(n, smin, smax)
+  )
+}
+
+initial_data <- function(n) {
+  w <- runif(2, -1, 1)
+  X <- generate_points(n)
+  z <- h(X, w)
+  list(X = X, z = z, w = w)
+}
+```
+
+```{r echo=FALSE}
+# We'll hide this cause it's ugly ;-)
+plot_result <- function(D, weights, last_only = TRUE) {
+  h <- unlist(weights %>% tail(1))
+  f <- D$w
+  
+  with(
+    D$X %>% filter(D$z == 1),
+    plot(
+      y ~ x, 
+      xlim = range(D$X$x), 
+      ylim = range(D$X$y), 
+      col = 'blue', 
+      pch = 16, 
+      cex = 0.8
+    )
+  )
+  
+  with(
+    D$X %>% filter(D$z != 1),
+    points(
+      y ~ x, 
+      col = 'black', 
+      pch = 16, 
+      cex = 0.8
+    )
+  )
+
+  # The target function, for reference.
+  abline(coef = c(0, -f[1]/f[2]), col = 'red', lty = 2, lwd = 2)
+  
+  # Plots intermediate hypotheses.
+  if (!last_only) {
+    colors <- rep(alpha('gray', 0.5), length(weights))
+    colors[1] <- alpha('blue', 0.5)
+    colors[length(colors)] <- 'green'
+    
+    lwds <- rep(1, length(weights))
+    lwds[1] <- lwds[length(weights)] <- 2
+    
+    for(i in 1:length(weights)) {
+      slope <- -weights[[i]]$x/weights[[i]]$y
+      slope <- if (is.nan(slope)) 0 else slope
+      abline(coef = c(0, slope), col = colors[i], lwd = lwds[i])
+    }
+  } 
+  # Plots only final hypothesis.
+  else {
+    abline(coef = c(0, -h[1]/h[2]), col = 'green', lty = 1, lwd = 2)
+  }
+  
+  legend(
+    'topright', 
+    c('truth', 'perceptron (convergence)', 'perceptron (initial)' ), 
+    col = c('red', 'green', 'blue'), 
+    lty = c(2, 1, 1),
+    lwd = 2
+  )
+}
+```
+
+## Exercise 7
+
+We run $1000$ sims and look at the statistics for convergence time.
+
+```{r}
+summary(
+  unlist(mclapply(
+    1:1000,
+    function(x) {
+      D <- initial_data(n = 10)  
+      length(perceptron(D$X, D$z))
+    },
+    mc.cores = detectCores()
+  ))
+)
+```
+
+My perceptron converges in $6$ iterations, on average, which would correspond to answer $a$. This is not the answer I was expecting, but the perceptron is functional, as can be seen in both \@ref(fig:perceptron-10) and \@ref(fig:perceptron-400): these are converging in few iterations, and to the right bound.
+
+```{r perceptron-10, fig.cap='Perceptron after convergence with 10 data points.', cache=FALSE}
+D <- initial_data(n = 10)
+plot_result(
+  D, perceptron(D$X, D$z), last_only = FALSE
+)
+```
+
+```{r perceptron-400, fig.cap='Perceptron after convergence with 400 data points.'}
+D <- initial_data(n = 400)
+plot_result(
+  D, perceptron(D$X, D$z), last_only = FALSE
+)
+```
+
+## Exercise 8
+
+We will shoot points at the board and see how many fall between $f$ and $g$.
+
+```{r}
+error_sim <- function(f, g, n) {
+  X <- generate_points(n)
+  sum(h(X, f) != h(X, g)) / n
+}
+```
+
+We will run $1000$ trials where we compute the percentage of disagreeing pairs for batches of $100\,000$ points. We then average those together. Averages-of-averages are fine as long as the samples are of the same size:
+
+$$
+\frac{\frac{1}{n}\sum_{i=1}^n s_i + \frac{1}{n}\sum_{i=n+1}^{2n} s_i}{2} = \frac{\frac{1}{n}\sum_{i=1}^{2n}s_i }{2}
+ = \frac{1}{2n}\sum_{i=1}^{2n}s_i 
+$$
+
+And here we go.
+
+```{r}
+summary(
+  unlist(mclapply(
+    1:1000,
+    function(x) {
+      D <- initial_data(n = 10) 
+      error_sim(
+        f = D$w, 
+        g = unlist(perceptron(D$X, D$z) %>% bind_rows() %>% tail(1)), 
+        n = 100000
+      )
+    },
+    mc.cores = detectCores()
+  ))
+)
+```
+
+So answer $c$, as the mean is closer to $0.1$ than it is to $0.01$.
+
+## Exercise 9
+
+Here, once again, the perceptron seems to converge faster than expected.
+
+```{r}
+summary(
+  unlist(mclapply(
+    1:1000,
+    function(x) {
+      D <- initial_data(n = 100)  
+      length(perceptron(D$X, D$z))
+    },
+    mc.cores = detectCores()
+  ))
+)
+```
+
+So, again, answer $a$, which seems to be wrong (should be seeing $100$). Makes me wonder if I am not randomizing it properly, but it does not appear to be so from the plots.
+
+```{r}
+D <- initial_data(n = 100)
+plot_result(
+  D, perceptron(D$X, D$z), last_only = FALSE
+)
+```
+
+## Exercise 10
+
+We run the simulation as before.
+
+```{r}
+summary(
+  unlist(mclapply(
+    1:1000,
+    function(x) {
+      D <- initial_data(n = 100) 
+      error_sim(
+        f = D$w, 
+        g = unlist(perceptron(D$X, D$z) %>% bind_rows() %>% tail(1)), 
+        n = 100000
+      )
+    },
+    mc.cores = detectCores()
+  ))
+)
+```
+
+So answer $b$, as the mean is closer to $0.01$ than it is to $0.001$

@@ -1,0 +1,7 @@
+*.Rproj*
+*html
+*_cache
+*_files
+rsconnect
+.RData
+.Rhistory
