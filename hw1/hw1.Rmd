@@ -5,6 +5,9 @@ output:
     toc: yes
     number_sections: no
 ---
+
+The source code for this notebook can be found [on Github](https://github.com/gmega/learning-from-data/blob/master/hw1).
+
 ```{r message=FALSE}
 library(tidyverse)
 library(itertools)
