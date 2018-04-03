@@ -189,7 +189,7 @@ summary(
 )
 ```
 
-So answer $b$, as $123$ is closer to $100$ than it is to $500$.
+So answer $b$, as the mean is closer to $100$ than it is to $500$.
 
 ## Exercise 10
 

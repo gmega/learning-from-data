@@ -20,6 +20,9 @@ library(doParallel)
 
 ```{r echo=FALSE}
 knitr::read_chunk('../common/perceptron.R')
+knitr::read_chunk('../common/linear-datasets.R')
+knitr::read_chunk('../common/olsr.R')
+
 source('../common/linear-datasets.R')
 source('../common/perceptron.R')
 source('../common/olsr.R')
@@ -360,7 +363,7 @@ So, rather nicely, it tries to stretch the circle enough that it follows the str
 
 Just by looking at the curve fitted by linear regression in [Exercise 9]{#Exercise-9} I would expect for us to get around $10\%$ of the classes wrong. And this would indeed be great, as it would mean that our $E_{out}$ would be essentially equivalent to the noise.
 
-```{r}
+```{r cache=FALSE}
 summary(
   mclapply(
     1:100,
