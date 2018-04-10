@@ -1,0 +1,350 @@
+---
+title: "Learning From Data - Homework 4"
+output: 
+  bookdown::html_document2:
+    toc: yes
+    number_sections: no
+    df_print: paged
+---
+
+The source code for this notebook can be found [on Github](https://github.com/gmega/learning-from-data/blob/master/hw4).
+
+```{Call_child, child='../common/macros.tex'}
+```
+
+```{r message=FALSE}
+library(tidyverse)
+```
+
+```{r echo = FALSE, cache=FALSE}
+doParallel::registerDoParallel(cores = parallel::detectCores())
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+```{r echo=FALSE, cache=FALSE}
+knitr::read_chunk('../common/bv.R')
+
+source('../common/bv.R')
+source('../common/misc.R')
+source('../common/olsr.R')
+source('../common/linear-datasets.R')
+```
+
+# Exercise 1
+
+We know from the VC bound that:
+
+$$
+\begin{equation}
+  N \geq \frac{8}{\epsilon^2} \ln \left(\frac{4m_\hset(2N)}{\delta}\right)
+  (\#eq:vcbound)
+\end{equation}
+$$
+Although Inequality \@ref(eq:vcbound) has $N$ on both sides, functions of the form $f(x) = k\log x$ have _attractive fixed points_ when $k > 1, x > 1$ which we can exploit to our advantage: instead of solving for $N$, we plug in the parameters and find the fixed point $f(N) = N$ numerically.
+
+```{r}
+fixed_point <- function(f, x = 1, error = 0.001) {
+  function(...) {
+    while(abs(x - f(x, ...)) > error) {
+      x <- f(x, ...)
+    }
+    x
+  }
+}
+```
+
+Translating the RHS of Inequality \@ref(eq:vcbound) into code, we get:
+
+```{r}
+rhs <- function(N, mh, delta, epsilon) {
+  (8/epsilon**2)*log(4*mh(2*N)/delta)
+}
+```
+
+where `mh` is the simplified growth function:
+
+```{r}
+mh <- function(N, d_vc) N**d_vc
+```
+
+We can now compute the fixed point.
+
+```{r}
+round(fixed_point(rhs)(delta = 0.05, epsilon = 0.05, mh = partial(mh, d_vc = 10)))
+```
+
+Which takes us to answer $d$.
+
+# Exercise 2
+
+We write down the right-hand sides of the bounds exactly as in their original inequalities, with the exception of Devroye's bound where we take advantage of our simplified growth function and perform a minor manipulation to render it computable with R doubles:
+
+$$
+\ln \left(\frac{4 \cdot m_{\hset}(N^2)}{\delta}\right) = \ln \left(\frac{2 \cdot N^{d_{vc}} }{\sqrt{\delta}}\right)^2 = 2\cdot \ln \left(\frac{2 \cdot N^{d_{vc}} }{\sqrt{\delta}}\right)
+$$
+
+```{r}
+bounds <- list(
+  vc = function(N, delta, mh) { 
+    sqrt((8/N)*log(4*mh(2*N)/delta)) 
+  },
+
+  rademacher = function(N, delta, mh) {
+    sqrt(2*log(2*N*mh(N))/N) + sqrt(2*log(1/delta)/N) + 1/N
+  },
+
+  parrondo = fixed_point(
+    function(N, delta, epsilon, mh) {
+      sqrt(1/N*(2*epsilon + log(6*mh(2*N)/delta)))
+    },
+    error = 10e-9
+  ),
+  
+  devroye = fixed_point(
+    function(N, delta, epsilon, mh) {
+      sqrt(1/(2*N)*(4*epsilon*(1 + epsilon) + 2*log(2*mh(N)/sqrt(delta))))
+    },
+    error = 10e-9
+  )
+)
+```
+
+```{r echo = FALSE}
+compute_bounds <- function(bounds, x_range, delta, mh) {
+  lapply(
+    names(bounds),
+    function(bound) {
+      tibble(
+        x = x_range,
+        y = sapply(x_range, function(N) {
+          bounds[[bound]](N = N, delta = delta, mh = mh)
+        }),
+        bound = rep(bound, length(x_range))
+      )
+    }
+  ) %>% bind_rows()
+}
+```
+
+```{r fig.width=8, fig.height=3, warning=FALSE, fig.align='center'}
+ggplot(
+  compute_bounds(
+    bounds, 
+    seq(5, 10000, 10), 
+    delta = 0.05, 
+    mh = partial(mh, d_vc = 50))
+  ) + 
+  geom_line(aes(x = x, y = y, col = bound)) +
+  xlab('N (samples)') + 
+  ylab('generalization error (bound)') +
+  ylim(c(0,5))
+```
+
+And, though not by much, the tightest bound is Devroye's (answer $d$).
+
+# Exercise 3
+
+For $N = 5$ we get:
+
+```{r}
+sapply(
+  names(bounds), 
+  function(bound) { 
+    bounds[[bound]](N = 5, delta = 0.05, mh = partial(mh, d_vc = 50))
+  }
+)
+```
+
+And the smallest bound in this case is Parrondo's and Van den Broek's, or answer $c$.
+
+# Exercises 4-7
+
+Exercises 4 to 7 require us to compute average functions $\bar{g}$, as well as the bias and variance for hypotheses sets defined by polinomial functions and fitted to data by means of ordinary least squares. Our datasets $\mathcal{D}$ are composed of separate samples of two points each. Each point takes the form $(X, f(X))$, where $f(x) = \sin (\pi * x)$ and $X \sim \mathcal{U}(-1, 1)$.
+
+```{r}
+f <- function(x) sin(pi * x)
+D <- function(n = 2) {
+  function() {
+    x <- runif(n, -1, 1)
+    cbind(x, f(x))
+  }
+}
+```
+
+Let $g_1(\vecb{x}), \cdots, g_k(\vecb{x})$ be a set of polynomial hypotheses computed over $k$ distinct, $n$-dimensional datsets sampled from $\mathcal{D}$. Take $(j)$ to represent the degree of the $j^{th}$ term in the polynomial; i.e, $g_i(\vecb{x}) = \sum_{j=1}^n w_{ij}x_j^{(j)}$. 
+
+Let $\widehat{w_j} = \frac{1}{k}\sum_{i = 1}^k w_{ij}$. It is then in general true that we can compute an approximation $\hat{g}(\vecb{x})$ to $\bar{g}(\vecb{x})$ as:
+
+$$
+\hat{g}(\vecb{x}) = \sum_{j=1}^{n}\widehat{w_j}x_j^{(j)}
+$$
+
+From where we get:
+
+```{r w-hat}
+```
+
+and:
+
+```{r g}
+```
+
+## Exercise 4
+
+We compute the average weight for the monomial $\hat{g}(x) = \hat{a}x$
+
+```{r}
+â <- ŵ(function() w_D(D(2)))[1, 1]
+round(â, digits = 2)
+```
+
+Our $\hat{a} \approx 1.42$, so we get answer $e$.
+
+## Exercise 5
+
+We know that the bias is given by $\mathbb{E_{\vecb{x}}}\left[\left(\bar{g}(\vecb{x}) - f(\vecb{x})\right)^2\right]$. We will approximate this numerically by computing the sample average of the squared distances over a set of equally-spaced points over $[-1,1]$. Our approximation is given by:
+
+```{r bias}
+```
+
+Sampling over $[-1,1]$ yields:
+
+```{r}
+bias(f, g(â), seq(-1, 1, 0.0001))
+```
+
+So answer $b$.
+
+## Exercise 6
+
+The variance over $\vecb{x}$ is given by $\mathbb{E}_{\mathcal{D}}\left[\mathbb{E}_{\vecb{x}}\left[\left(g_{\mathcal{D}}(\vecb{x}) - \bar{g}(\vecb{x})\right)^2\right]\right]$. To compute the variance numerically, therefore, we just have to generate a set of hypotheses $g_1(\vecb{x}), \cdots, g_k(\vecb{x})$ and, for each hypothesis $g_i$, compute its "bias" with respect to $\bar{g}$ (or rather, $\hat{g}$):
+
+```{r variance}
+```
+
+For our current estimate of $\hat{a}$, this yields:
+
+```{r}
+variance(g_bar = g(â), g_D = function() g(w_D(D(2))), x = seq(-1, 1, 0.0001))
+```
+
+Or answer $a$.
+
+## Exercise 7
+
+In this exercise, we introduce non-linear features. We can model those as follows:
+
+```{r}
+models <- list(
+  a = function(X) rep(1, nrow(X)),
+  b = function(X) get_x(X),
+  c = function(X) cbind(1, get_x(X)),
+  d = function(X) get_x(X)**2,
+  e = function(X) cbind(1, get_x(X)**2)
+)
+```
+
+Computing the expected out-of-sample error for each model yields:
+
+```{r}
+parallel::mclapply(
+  names(models),
+  function(name) {
+    model <- models[[name]]
+    # Estimate \bar{g}:
+    ĝ <- compose(g(ŵ(partial(w_D, D = D(2), features = model))), model, as.matrix)
+    # Compute e_out:
+    tibble(
+      bias = bias(f, ĝ, seq(-1, 1, 0.1)),
+      variance = variance(
+        ĝ, 
+        function() compose(g(w_D(D = D(2), features = model)), model, as.matrix), 
+        x = seq(-1, 1, 0.1)
+      ),
+      e_out = bias + variance,
+      model = name
+    )
+  },
+  mc.cores = parallel::detectCores()
+) %>% bind_rows
+```
+
+And model $b$ (and thus Answer $b$) wins.
+
+# Exercise 8
+
+The recurrence $f(N + 1) = 2f(N) + {N \choose q}$ expands to:
+
+$$
+m_\hset(N) = 2^N - \sum_{i = 0}^{N - q - 1} 2^i {N - i - 1 \choose q}
+$$
+
+It is clear, then, that $m_\hset(N) = 2^N$ if and only if $\sum_{i = 0}^{N - q - 1} 2^i {N - i - 1 \choose q} = 0$. This will happen when each of the binomial terms are zero; i.e., when $N - i - 1 < q \iff N < q + i + 1$ for $0 < i < N - q - 1$. Substituting $i = 0$ we get that $N < q + 1$, meaning that $m_\hset(N) = 2^N$ if and only if $N \leq q$.
+
+We therefore get answer $b$.
+
+# Exercise 9
+The set $\bigcap_{k = 1}^k\hset_k$ contains less hypotheses than any of the sets in $\{\hset_1, \cdots, \hset_K\}$. It is therefore stands to reason that it will always be able to shatter smaller sets of points than any of the hypothesis sets individually; that is, for $1 \leq i \leq K$:
+
+$$
+d_{VC}\left(\bigcap_{k = 1}^k\hset_k\right) \leq d_{VC} \mathcal({H}_i)
+$$
+
+Clearly, the largest integer satisfying such condition is $\min\left\{d_{VC} \mathcal({H}_i)\right\}$. 
+
+Further, it is also possible that the intersection is empty, in which case $d_{VC}(\bigcap_{k = 1}^k\hset_k) = 0$. Indeed, without further information on the hypothesis sets, the only claim we can make on the intersection is that it has $VC$ dimension that is larger than zero. The tightest bound we can claim on the intersection is, therefore:
+
+$$
+0 \leq d_{VC}\left(\bigcap_{k = 1}^k\hset_k\right) \leq \min\left\{d_{VC} \mathcal({H}_i)\right\}
+$$
+
+Which gives us answer $b$.
+
+# Exercise 10
+
+Since we are only adding hypotheses together, the union of the hypotheses sets must have a $VC$ dimension that is at least as large as the largest $VC$ dimension amongst the sets; i.e., we are, at the very least, preserving the hability to shatter a set of points that is as large as the largest set of points that could already be shattered by one of the original hypothesis sets individually. It is therefore always the case that:
+
+$$
+\max\{d_{VC}(\hset_k)\} \leq d_{VC}\left(\bigcup_{k = 1}^k\hset_k\right)
+$$
+
+
+The upper bound is a tad more complicated. To see why, note that a set of points $S$ that cannot be shattered by neither sets $\hset_i$ or $\hset_j$ in isolation may be shattered by $\hset_i \cup \hset_j$ if the union of separable dichotomies in both sets ends up covering all dichotomies in $S$ (e.g. if $\hset_i$ were short on the one dichotomy that $\hset_j$ provides).
+
+The upper bound, therefore, relies on us being able to characterize the VC dimension of the union of two completely "disjoint" hypothesis sets. We are, in particular, concerned with the bound:
+
+$$
+\begin{equation}
+m_{\left(\hset_{i} \cup \hset_j\right)}(N) \leq m_{\hset_i}(N) + m_{\hset_j}(N) \leq \sum_{i = 0}^{d_i} {N \choose i} + \sum_{i = 0}^{d_j} {N \choose i}
+(\#eq:union-bound)
+\end{equation}
+$$
+
+
+With hindsight, we set $N = d_i + d_j + 1$ and demonstrate that $m_{\hset_i}(d_i + d_j + 1) + m_{\hset_j}(d_i + d_j + 1) = 2^{d_i + d_j + 1}$. This will lead to the conclusion that $d_{VC(\hset_i \cup \hset_j)} \leq d_{VC}(\hset_i) + d_{VC}(\hset_j) + 1$.
+
+$$
+m_{\hset_i}(d_i + d_j + 1) + m_{\hset_j}(d_i + d_j + 1) =\\
+=\sum_{i = 0}^{d_i} {d_i + d_j + 1 \choose i} + \sum_{i = 0}^{d_j} {d_i + d_j + 1 \choose i} =\\
+= \left(1 + \frac{(d_i + d_j + 1)!}{1!(d_i + d_j)!} + \frac{(d_i + d_j + 1)!}{2!(d_i + d_j - 1)!} +\cdots+ \frac{(d_i + d_j + 1)!}{d_i!(d_j + 1)!}\right) + \\ 
++ \left(1 + \frac{(d_i + d_j + 1)!}{1!(d_i + d_j)!} + \frac{(d_i + d_j + 1)!}{2!(d_i + d_j - 1)!} +\cdots+ \frac{(d_i + d_j + 1)!}{d_j!(d_i + 1)!}\right)
+$$
+We now note that the last two summations are essentially the same in reverse. In particular, they can be seen as a single summation:
+
+$$
+\begin{equation}
+\left(1 + \frac{(d_i + d_j + 1)!}{1!(d_i + d_j)!} + \cdots + \frac{(d_i + d_j + 1)!}{d_i!(d_j + 1)!} + \frac{(d_i + d_j + 1)!}{(d_i + 1)!d_j!} + \cdots + \frac{(d_i + d_j + 1)!}{(d_i + d_j)!1!} + 1 \right) =\\ = \sum_{i = 0}^{d_i + d_j + 1}{d_i + d_j + 1 \choose i} = 2^{d_i+d_j+1}
+(\#eq:summation)
+\end{equation}
+$$
+
+It follows from Eqs. \@ref(eq:union-bound) and \@ref(eq:summation) that $m_{\left(\hset_{i} \cup \hset_j\right)}(N) \leq  2^{d_i+d_j+1}$. In other words, $d_{VC(\hset_i \cup \hset_j)} \leq d_{VC}(\hset_i) + d_{VC}(\hset_j) + 1$. $\blacksquare$
+
+
+As a corollary, we have that:
+
+$$
+\max\{d_{VC}(\hset_k)\} \leq d_{VC}\left(\bigcup_{k = 1}^k\hset_k\right) \leq \sum_{i=1}^{K}\left(d_{VC}(\hset_i) + 1\right) = K - 1 + \sum_{k=1}^{K}d_{VC}(\hset_k)
+$$
+
+which finally takes us to answer $e$.

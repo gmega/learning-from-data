@@ -6,7 +6,7 @@ output:
     number_sections: no
 ---
 
-The source code for this notebook can be found [on Github](https://github.com/gmega/learning-from-data/blob/master/hw1).
+The source code for this notebook can be found [on Github](https://github.com/gmega/learning-from-data/blob/master/hw3).
 
 # Exercises 1-3
 
@@ -30,7 +30,6 @@ min_n(epsilon = 0.05, b = 0.03, M = 1)
 Answer $b$.
 
 ## Exercise 2
-
 ```{r}
 min_n(epsilon = 0.05, b = 0.03, M = 10)
 ```
@@ -73,10 +72,10 @@ This gets us answer $b$.
 
 # Exercise 5
 
-Generalization theory dictates that if some learning model has a breakpoint, then its growth function is bounded by a polynomial. A breakpoint, in turn, is the largest value of $N$ for which the growth function equals the upper bound, $2^N$. This imply that valid growth functions must either:
+Generalization theory dictates that if some learning model has a breakpoint, then its growth function is bounded by a polynomial. A breakpoint, in turn, is the largest value of $N$ for which the growth function is exactly the same as the upper bound, $2^N$. This implies that valid growth functions must either:
 
-* be equal to $2^N$ for all $N$; or; 
-* be polynomials of $N$ which nevertheless must be always smaller or equal to $2^N$ for all positive integers (i.e., for function $f$, we must have that $f_{i}(N)$ that $f_{i}(N) \leq 2^N$ for all positive integers).
+* be equal to $2^N$ for all $N$, or; 
+* be polynomials of $N$ which are nevertheless always smaller or equal to $2^N$ for all positive integers (i.e., for function $f$, we must have that $f(N)$ that $f(N) \leq 2^N$ for all positive integers).
 
 We therefore have to check that each of the provided growth functions satisfies these conditions, and rule out those that do not.
 
@@ -98,7 +97,7 @@ $$
 
 $f(N) = 2^{\lfloor\sqrt{N}\rfloor} - 1 < 2^N$ is a non-polynomial function of $N$ (I will not prove this) which is smaller than $2^N$ for $N \geq 1$. $f_{iii}$ is not, therefore, a valid growth function.
 
-**Function (iv).** This is also trivially not a valid growth function, as it is not polynomial in $N$, but at the same time it is smaller than $2^N$ for $N \geq 1$ ($\lfloor N/2 \rfloor < N$ for $N > 2$)
+**Function (iv).** This is also trivially not a valid growth function, as it is not polynomial in $N$, but at the same time it is smaller than $2^N$ for $N \geq 1$ ($\lfloor N/2 \rfloor < N$ for $N \geq 2$)
 
 **Function (v).** Trivially valid, as it is equal to $2^N$.
 
@@ -122,7 +121,7 @@ To compute this, it is useful to break down the resulting discrete intervals in 
 
 **Case 2 (non-overlapping).** Selecting any $4$ bars in Fig. \@ref(fig:2-intervals) will generate a distinct pair of non-overlapping intervals, and thus a different pattern in the underlying points. This means that non-overlapping intervals can generate an extra ${N + 1 \choose 4}$ patterns
 
-```{r 2-intervals, fig.align='center', out.width='500pt', fig.cap='Non-overlapping intervals.'}
+```{r 2-intervals, fig.align='center', echo = FALSE, out.width='500pt', fig.cap='Non-overlapping intervals.'}
 knitr::include_graphics('./images/2-intervals.png')
 ```
 
@@ -140,7 +139,7 @@ Taking a hint from Fig. \@ref(fig:2-intervals-breakpoint), we see that in order 
 
 # Exercise 9
 
-We start by arguing that any point configuration with more than $3$ points and that can be shattered by a triangle _must_ be composed of points that lay along a convex hull. Otherwise, we can trivially generate dichotomies that cannot be separated by taking taking the convex hull of these points, assigning $+1$ to points that are on the convex hull, and $-1$ to points that are not.
+We start by arguing that any point configuration with more than $3$ points and that can be shattered by a triangle _must_ be composed of points that lay along a convex hull. Otherwise, we can trivially generate dichotomies that cannot be separated by taking the convex hull of these points, assigning $+1$ to points that are on the convex hull, and $-1$ to points that are not.
 
 With that out of the way, it is not hard to see that separating points along a convex hull with a triangle reduces to $3$-intervals with a twist: namely, that the "last" point becomes adjacent to the first, so that sets with $7$ points can now be shattered (Fig. \@ref(fig:triangle-shatter)(a)).
 
@@ -148,7 +147,7 @@ With that out of the way, it is not hard to see that separating points along a c
 knitr::include_graphics('./images/triangle-shatter.png')
 ```
 
-Assume now, without loss of generality, that we introduced an $8^{th}$ point between the two adjacent red points $x_1$ and $x_2$. We will demonstrate that if $x_1$ and $x_2$ are red, then either _i)_ $x_3$ is also red, or _ii)_ $x_3$ is not a part of a the convex hull. Either way, an $8$-point set cannot be shattered with a triangle.
+Assume now, without loss of generality, that we wished to introduce an $8^{th}$ point between the two adjacent red points $x_1$ and $x_2$. We will demonstrate that if $x_1$ and $x_2$ are red, then either: _i)_ $x_3$ is also red, or _ii)_ $x_3$ is not a part of a the convex hull. Either way, an $8$-point set cannot be shattered with a triangle.
 
 **Proof.** Suppose we wanted our newly-added $x_3$ point to be blue. We must therefore place $x_3$ outside of the decision triangle. However, since the interior angles in a convex hull cannot be larger than $180^{\circ}$, it must be the case that $x_3$ is contained within the small orange triangle of Fig. \@ref(fig:triangle-shatter)(b). That small triangle, however, is entirely composed of red points as it lays entirely within our decision triangle.
 

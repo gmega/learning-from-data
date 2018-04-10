@@ -23,8 +23,8 @@ generate_ls_dataset <- function(n, w = NULL, target = f) {
   )
 }
 
-get_x <- function(X, no_bias = FALSE) X[, (no_bias + 1):(ncol(X) - 1)]
-get_y <- function(X) X[, ncol(X)]
+get_x <- function(X, no_bias = FALSE) X[, (no_bias + 1):(ncol(X) - 1), drop = FALSE]
+get_y <- function(X) X[, ncol(X), drop = FALSE]
 
 f <- function(X, w) {
   general_f(X, c(w, -1))
