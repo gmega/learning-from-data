@@ -7,5 +7,6 @@ Apart from the source code, I have also published precompiled (HTML) versions of
 2. [Homework 2](http://rpubs.com/giuliano_mega/375243) ([questions](https://work.caltech.edu/homework/hw2.pdf))
 3. [Homework 3](http://rpubs.com/giuliano_mega/376525) ([questions](https://work.caltech.edu/homework/hw3.pdf))
 4. [Homework 4](http://rpubs.com/giuliano_mega/378392) ([questions](https://work.caltech.edu/homework/hw4.pdf))
+5. [Interlude: Writeup on Backpropagation and Reverse-mode Autodiff](http://rpubs.com/giuliano_mega/381480)
 
 If you spot a mistake, I'll be happy to hear about it! Thanks!
